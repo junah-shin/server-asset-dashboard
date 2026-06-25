@@ -1,60 +1,28 @@
-"""
-SaaS Dashboard Template
-=======================
-A production-ready Streamlit template for SaaS metrics visualization.
-
-Features:
-- Supabase authentication (login/register/password reset)
-- Session persistence via st.session_state
-- Interactive Plotly charts
-- AI-powered insights (Claude API)
-- Responsive design with dark theme
-- Demo data generator included
-
-Author: Your Company Name
-License: See LICENSE file
-"""
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import os
 from pathlib import Path
 
-# Import custom utilities
-from utils.auth import login, signup, logout, check_authentication, get_supabase_client
-from utils.database import (
-    get_monthly_revenue,
-    get_revenue_by_plan,
-    get_cohort_retention,
-    get_current_metrics
-)
+from utils.database import get_server_inventory, get_server_stats, add_server, delete_server, get_supabase_client
 from utils.charts import (
-    create_mrr_chart,
-    create_customer_chart,
-    create_churn_chart,
-    create_plan_revenue_chart,
-    create_cohort_retention_table
+    create_location_chart,
+    create_env_chart,
+    create_status_chart,
+    create_location_env_chart,
 )
-from utils.ai_insights import generate_executive_summary, answer_metric_question
 
 # ============================================================================
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # ============================================================================
 
 st.set_page_config(
-    page_title="SaaS Dashboard",
-    page_icon="📊",
+    page_title="Server Asset Dashboard",
+    page_icon="🖥️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ============================================================================
-# LOAD CUSTOM CSS
-# ============================================================================
-
 def load_css():
-    """Load custom CSS styling for dark theme and professional look."""
     css_file = Path(__file__).parent / "assets" / "style.css"
     if css_file.exists():
         with open(css_file) as f:
@@ -62,344 +30,172 @@ def load_css():
 
 load_css()
 
-# ============================================================================
-# SESSION STATE INITIALIZATION
-# ============================================================================
-
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
-if 'user' not in st.session_state:
-    st.session_state.user = None
 
 # ============================================================================
-# AUTHENTICATION PAGES
-# ============================================================================
-
-def show_login_page():
-    """
-    Display login and signup page for unauthenticated users.
-    
-    Features:
-    - Email/password login
-    - New user registration
-    - Form validation
-    - Error handling
-    """
-    st.title("📊 SaaS Dashboard")
-    st.markdown("### Welcome! Please login to continue.")
-    
-    tab1, tab2 = st.tabs(["Login", "Sign Up"])
-    
-    with tab1:
-        with st.form("login_form"):
-            email = st.text_input("Email", key="login_email")
-            password = st.text_input("Password", type="password", key="login_password")
-            submit = st.form_submit_button("Login", use_container_width=True)
-            
-            if submit:
-                if email and password:
-                    if login(email, password):
-                        st.success("✅ Login successful!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Invalid credentials")
-                else:
-                    st.warning("⚠️ Please enter both email and password")
-    
-    with tab2:
-        with st.form("signup_form"):
-            st.markdown("Create a new account to get started")
-            email = st.text_input("Email", key="signup_email")
-            password = st.text_input("Password (min. 6 characters)", type="password", key="signup_password")
-            password_confirm = st.text_input("Confirm Password", type="password", key="signup_password_confirm")
-            submit = st.form_submit_button("Create Account", use_container_width=True)
-            
-            if submit:
-                if email and password and password_confirm:
-                    if password == password_confirm:
-                        if len(password) >= 6:
-                            if signup(email, password):
-                                st.rerun()
-                        else:
-                            st.error("❌ Password must be at least 6 characters")
-                    else:
-                        st.error("❌ Passwords don't match")
-                else:
-                    st.warning("⚠️ Please fill in all fields")
-
-# ============================================================================
-# MAIN DASHBOARD
+# DASHBOARD
 # ============================================================================
 
 def show_dashboard():
-    """
-    Main dashboard view for authenticated users.
-    
-    Features:
-    - Sidebar navigation
-    - Multiple dashboard pages
-    - User info display
-    - Logout functionality
-    """
-    # Sidebar
     with st.sidebar:
-        st.title("📊 Dashboard")
+        st.title("🖥️ Server Dashboard")
         st.markdown("---")
-        
-        # Navigation menu
+
         page = st.radio(
             "Navigation",
-            ["Overview", "Revenue Analytics", "Customer Insights", "AI Insights"],
+            ["Overview", "Server List", "Add Server"],
             label_visibility="collapsed"
         )
-        
-        st.markdown("---")
-        
-        # User info and logout
-        if st.session_state.user:
-            st.markdown(f"**User:** {st.session_state.user.email}")
-        
-        if st.button("Logout", use_container_width=True):
-            logout()
-            st.rerun()
-    
-    # Get Supabase client and fetch data
+
     supabase = get_supabase_client()
-    
-    # Fetch all required data
-    revenue_df = get_monthly_revenue(supabase, months=12)
-    plan_df = get_revenue_by_plan(supabase, months=12)
-    cohort_df = get_cohort_retention(supabase, cohorts=6)
-    current_metrics = get_current_metrics(supabase)
-    
-    # Route to selected page
+
     if page == "Overview":
-        show_overview_page(current_metrics, revenue_df, plan_df)
-    elif page == "Revenue Analytics":
-        show_revenue_page(revenue_df, plan_df)
-    elif page == "Customer Insights":
-        show_customer_page(revenue_df, cohort_df)
-    elif page == "AI Insights":
-        show_ai_insights_page(current_metrics, revenue_df, plan_df)
+        show_overview_page(supabase)
+    elif page == "Server List":
+        show_server_list_page(supabase)
+    elif page == "Add Server":
+        show_add_server_page(supabase)
 
 # ============================================================================
-# DASHBOARD PAGES
+# OVERVIEW PAGE
 # ============================================================================
 
-def show_overview_page(metrics: dict, revenue_df: pd.DataFrame, plan_df: pd.DataFrame):
-    """
-    Display overview page with high-level KPIs and trends.
-    
-    Args:
-        metrics (dict): Current month's key metrics
-        revenue_df (pd.DataFrame): Monthly revenue history
-        plan_df (pd.DataFrame): Revenue breakdown by plan tier
-    """
-    st.title("📈 Dashboard Overview")
-    st.markdown(f"**Last Updated:** {datetime.now().strftime('%B %d, %Y at %I:%M %p')}")
-    
-    # Check if data is available
-    if not metrics:
-        st.warning("⚠️ No data available. Please run the seed script to populate sample data.")
-        st.code("python seed_data.py", language="bash")
+def show_overview_page(supabase):
+    logo_col, title_col = st.columns([0.4, 2])
+    with logo_col:
+        st.image(str(Path(__file__).parent / "assets" / "logo.png"), width=150)
+    with title_col:
+        st.title("서버 자산 현황")
+        st.markdown(f"**Last Updated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+
+    stats = get_server_stats(supabase)
+    df = get_server_inventory(supabase)
+
+    if not stats:
+        st.warning("No data available. Please run the schema.sql in Supabase SQL Editor first.")
         return
-    
-    # Key metrics row
+
+    # KPI Row
     col1, col2, col3, col4 = st.columns(4)
-    
     with col1:
-        st.metric(
-            "Monthly Recurring Revenue",
-            f"${metrics.get('mrr', 0):,.0f}",
-            f"{metrics.get('mrr_growth', 0):+.1f}%"
-        )
-    
+        st.metric("Total Servers", f"{stats['total']}")
     with col2:
-        st.metric(
-            "Total Customers",
-            f"{metrics.get('customers', 0):,}",
-            f"{metrics.get('customer_growth', 0):+.1f}%"
-        )
-    
+        st.metric("Normal", f"{stats['normal']}", delta=f"{stats['normal']}/{stats['total']}")
     with col3:
-        st.metric(
-            "Churn Rate",
-            f"{metrics.get('churn_rate', 0):.1f}%",
-            delta_color="inverse"
-        )
-    
+        st.metric("Fault", f"{stats['fault']}", delta=f"{stats['fault']}", delta_color="inverse")
     with col4:
-        st.metric(
-            "New Customers",
-            f"{metrics.get('new_customers', 0):,}"
-        )
-    
+        st.metric("Maintenance", f"{stats['maintenance']}")
+
     st.markdown("---")
-    
-    # Charts row
+
+    # Charts Row 1
     col1, col2 = st.columns(2)
-    
     with col1:
-        mrr_chart = create_mrr_chart(revenue_df)
-        if mrr_chart:
-            st.plotly_chart(mrr_chart, use_container_width=True)
-    
+        fig = create_location_chart(df)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
     with col2:
-        customer_chart = create_customer_chart(revenue_df)
-        if customer_chart:
-            st.plotly_chart(customer_chart, use_container_width=True)
+        fig = create_env_chart(df)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
 
-def show_revenue_page(revenue_df: pd.DataFrame, plan_df: pd.DataFrame):
-    """
-    Display detailed revenue analytics page.
-    
-    Args:
-        revenue_df (pd.DataFrame): Monthly revenue history
-        plan_df (pd.DataFrame): Revenue breakdown by plan tier
-    """
-    st.title("💰 Revenue Analytics")
-    
-    if revenue_df.empty:
-        st.warning("⚠️ No revenue data available.")
-        return
-    
-    # MRR trend
-    st.subheader("MRR Trend")
-    mrr_chart = create_mrr_chart(revenue_df)
-    if mrr_chart:
-        st.plotly_chart(mrr_chart, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Revenue breakdown
-    col1, col2 = st.columns([1, 1])
-    
+    # Charts Row 2
+    col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Revenue by Plan Tier")
-        plan_chart = create_plan_revenue_chart(plan_df)
-        if plan_chart:
-            st.plotly_chart(plan_chart, use_container_width=True)
-    
+        fig = create_status_chart(df)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
     with col2:
-        st.subheader("Plan Breakdown Table")
-        if not plan_df.empty:
-            latest_month = plan_df['month'].max()
-            latest_plan_data = plan_df[plan_df['month'] == latest_month][['plan_tier', 'revenue', 'customer_count']]
-            latest_plan_data.columns = ['Plan', 'Revenue', 'Customers']
-            latest_plan_data['Revenue'] = latest_plan_data['Revenue'].apply(lambda x: f"${x:,.2f}")
-            st.dataframe(latest_plan_data, use_container_width=True, hide_index=True)
-
-def show_customer_page(revenue_df: pd.DataFrame, cohort_df: pd.DataFrame):
-    """
-    Display customer insights and retention analysis.
-    
-    Args:
-        revenue_df (pd.DataFrame): Monthly revenue history
-        cohort_df (pd.DataFrame): Cohort retention data
-    """
-    st.title("👥 Customer Insights")
-    
-    # Customer growth chart
-    st.subheader("Customer Growth")
-    customer_chart = create_customer_chart(revenue_df)
-    if customer_chart:
-        st.plotly_chart(customer_chart, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Churn analysis
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.subheader("Churn Rate Analysis")
-        churn_chart = create_churn_chart(revenue_df)
-        if churn_chart:
-            st.plotly_chart(churn_chart, use_container_width=True)
-    
-    with col2:
-        st.subheader("Recent Trends")
-        if not revenue_df.empty:
-            recent = revenue_df.tail(3)[['month', 'new_customers', 'churn_count']].copy()
-            recent['month'] = recent['month'].dt.strftime('%Y-%m')
-            recent.columns = ['Month', 'New', 'Churned']
-            st.dataframe(recent, use_container_width=True, hide_index=True)
-    
-    # Cohort retention
-    st.markdown("---")
-    st.subheader("Cohort Retention Analysis")
-    
-    if not cohort_df.empty:
-        cohort_table = create_cohort_retention_table(cohort_df)
-        if cohort_table is not None:
-            # Style the dataframe with color gradient
-            styled_table = cohort_table.style.format("{:.1f}%")\
-                .background_gradient(cmap='RdYlGn', vmin=0, vmax=100)
-            st.dataframe(styled_table, use_container_width=True)
-            st.caption("📊 Retention rates by cohort month (rows) and months since signup (columns)")
-    else:
-        st.info("ℹ️ No cohort data available yet.")
-
-def show_ai_insights_page(metrics: dict, revenue_df: pd.DataFrame, plan_df: pd.DataFrame):
-    """
-    Display AI-powered insights and natural language query interface.
-    
-    Args:
-        metrics (dict): Current month's key metrics
-        revenue_df (pd.DataFrame): Monthly revenue history
-        plan_df (pd.DataFrame): Revenue breakdown by plan tier
-    """
-    st.title("🤖 AI-Powered Insights")
-    
-    if not metrics:
-        st.warning("⚠️ No data available for AI analysis.")
-        return
-    
-    # Executive Summary
-    st.subheader("📋 Executive Summary")
-    with st.spinner("Generating AI summary..."):
-        summary = generate_executive_summary(metrics, revenue_df)
-        st.info(summary)
-    
-    st.markdown("---")
-    
-    # Natural language query interface
-    st.subheader("💬 Ask About Your Metrics")
-    st.markdown("Ask me anything about your SaaS metrics in natural language!")
-    
-    # Sample questions expander
-    with st.expander("📌 Sample Questions"):
-        st.markdown("""
-        - What's driving my revenue growth?
-        - How is my churn rate trending?
-        - Which plan tier is most profitable?
-        - Should I be worried about customer growth?
-        - What should I focus on this month?
-        """)
-    
-    # Query input
-    question = st.text_input("Your question:", placeholder="e.g., What's my biggest growth opportunity?")
-    
-    if st.button("Get AI Insight", type="primary"):
-        if question:
-            with st.spinner("Analyzing your data..."):
-                answer = answer_metric_question(question, metrics, revenue_df, plan_df)
-                st.success(answer)
-        else:
-            st.warning("⚠️ Please enter a question")
+        fig = create_location_env_chart(df)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
 
 # ============================================================================
-# MAIN APPLICATION ENTRY POINT
+# SERVER LIST PAGE
+# ============================================================================
+
+def show_server_list_page(supabase):
+    st.title("📋 Server Inventory")
+
+    df = get_server_inventory(supabase)
+
+    if df.empty:
+        st.warning("No servers found.")
+        return
+
+    # Filters
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        location_filter = st.multiselect("Location", options=['IDC', 'HQ'], default=['IDC', 'HQ'])
+    with col2:
+        env_filter = st.multiselect("Environment", options=['PRD', 'STG', 'DEV'], default=['PRD', 'STG', 'DEV'])
+    with col3:
+        status_filter = st.multiselect("Status", options=['정상', '장애', '점검'], default=['정상', '장애', '점검'])
+
+    filtered_df = df[
+        (df['location'].isin(location_filter)) &
+        (df['env'].isin(env_filter)) &
+        (df['status'].isin(status_filter))
+    ]
+
+    st.markdown(f"**Showing {len(filtered_df)} of {len(df)} servers**")
+
+    display_df = filtered_df[['location', 'env', 'hostname', 'ip', 'owner', 'status']].copy()
+    display_df.columns = ['Location', 'Env', 'Hostname', 'IP', 'Owner', 'Status']
+
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Status": st.column_config.TextColumn(
+                "Status",
+                help="정상 / 장애 / 점검"
+            )
+        }
+    )
+
+# ============================================================================
+# ADD SERVER PAGE
+# ============================================================================
+
+def show_add_server_page(supabase):
+    st.title("➕ Add Server")
+
+    with st.form("add_server_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            location = st.selectbox("Location", options=['IDC', 'HQ'])
+            env = st.selectbox("Environment", options=['PRD', 'STG', 'DEV'])
+            hostname = st.text_input("Hostname", placeholder="web-prd-01")
+        with col2:
+            ip = st.text_input("IP Address", placeholder="10.10.1.11")
+            owner = st.text_input("Owner", placeholder="홍길동")
+            status = st.selectbox("Status", options=['정상', '장애', '점검'])
+
+        submit = st.form_submit_button("Add Server", use_container_width=True, type="primary")
+
+        if submit:
+            if hostname and ip and owner:
+                server_data = {
+                    'location': location,
+                    'env': env,
+                    'hostname': hostname,
+                    'ip': ip,
+                    'owner': owner,
+                    'status': status,
+                }
+                if add_server(supabase, server_data):
+                    st.success(f"Server '{hostname}' added successfully!")
+                    st.rerun()
+            else:
+                st.warning("Please fill in all required fields (Hostname, IP, Owner)")
+
+# ============================================================================
+# MAIN
 # ============================================================================
 
 def main():
-    """
-    Main application entry point.
-    Routes users to login page or dashboard based on authentication state.
-    """
-    if check_authentication():
-        show_dashboard()
-    else:
-        show_login_page()
+    show_dashboard()
 
 if __name__ == "__main__":
     main()

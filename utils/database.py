@@ -1,245 +1,113 @@
-"""
-Database Module
-===============
-Database query utilities for fetching SaaS metrics.
+import ssl
+import os
 
-Features:
-- Monthly revenue queries
-- Revenue breakdown by plan tier
-- Cohort retention analysis
-- Current month metrics calculation
+_orig_create_default_context = ssl.create_default_context
 
-Tables Used:
-- monthly_revenue: MRR, customer count, churn data
-- revenue_by_plan: Plan tier breakdown
-- cohort_retention: Customer retention by cohort
+def _create_unverified_context(*args, **kwargs):
+    ctx = _orig_create_default_context(*args, **kwargs)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
 
-Note:
-All queries use Supabase PostgREST API for secure data access.
-"""
+ssl.create_default_context = _create_unverified_context
+ssl._create_default_https_context = ssl._create_unverified_context
 
 import pandas as pd
-from supabase import Client
-from typing import Dict
+from supabase import create_client, Client
+from typing import Dict, List
 import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-def get_monthly_revenue(supabase: Client, months: int = 12) -> pd.DataFrame:
-    """
-    Fetch monthly revenue data for the specified number of months.
-    
-    Args:
-        supabase (Client): Supabase client instance
-        months (int): Number of months to fetch (default: 12)
-        
-    Returns:
-        pd.DataFrame: Monthly revenue data with columns:
-            - month: Date (datetime)
-            - mrr: Monthly Recurring Revenue (float)
-            - customer_count: Total customers (int)
-            - churn_count: Churned customers (int)
-            - new_customers: New customers (int)
-            
-    Example:
-        >>> supabase = get_supabase_client()
-        >>> df = get_monthly_revenue(supabase, months=6)
-        >>> print(df[['month', 'mrr']].head())
-    """
+def get_supabase_client() -> Client:
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_KEY")
+
+    if not url or not key:
+        st.error("Supabase credentials not found. Please check your .env file.")
+        st.stop()
+
+    return create_client(url, key)
+
+
+def get_server_inventory(supabase: Client) -> pd.DataFrame:
     try:
-        response = supabase.table("monthly_revenue")\
+        response = supabase.table("server_inventory")\
             .select("*")\
-            .order("month", desc=True)\
-            .limit(months)\
+            .order("location")\
             .execute()
-        
+
         df = pd.DataFrame(response.data)
-        if not df.empty:
-            df['month'] = pd.to_datetime(df['month'])
-            df = df.sort_values('month')
         return df
-        
+
     except Exception as e:
-        st.error(f"❌ Error fetching revenue data: {str(e)}")
+        st.error(f"Error fetching server inventory: {str(e)}")
         return pd.DataFrame()
 
 
-def get_revenue_by_plan(supabase: Client, months: int = 12) -> pd.DataFrame:
-    """
-    Fetch revenue breakdown by plan tier.
-    
-    Args:
-        supabase (Client): Supabase client instance
-        months (int): Number of months to fetch (default: 12)
-        
-    Returns:
-        pd.DataFrame: Plan revenue data with columns:
-            - month: Date (datetime)
-            - plan_tier: Plan name (str)
-            - revenue: Revenue for this plan (float)
-            - customer_count: Customers on this plan (int)
-            
-    Note:
-        Fetches data for all plan tiers (typically 3 tiers: starter, pro, enterprise)
-        so the result will have months * 3 rows.
-    """
+def get_server_stats(supabase: Client) -> Dict:
     try:
-        # Fetch data for all plans across the specified months
-        response = supabase.table("revenue_by_plan")\
+        response = supabase.table("server_inventory")\
             .select("*")\
-            .order("month", desc=True)\
-            .limit(months * 3)\
             .execute()
-        
-        df = pd.DataFrame(response.data)
-        if not df.empty:
-            df['month'] = pd.to_datetime(df['month'])
-            df = df.sort_values(['month', 'plan_tier'])
-        return df
-        
-    except Exception as e:
-        st.error(f"❌ Error fetching plan data: {str(e)}")
-        return pd.DataFrame()
 
-
-def get_cohort_retention(supabase: Client, cohorts: int = 6) -> pd.DataFrame:
-    """
-    Fetch cohort retention analysis data.
-    
-    Args:
-        supabase (Client): Supabase client instance
-        cohorts (int): Number of cohorts to analyze (default: 6)
-        
-    Returns:
-        pd.DataFrame: Cohort retention data with columns:
-            - cohort_month: Cohort signup month (datetime)
-            - month_number: Months since signup (int)
-            - customers_remaining: Active customers (int)
-            - retention_rate: Retention percentage (float)
-            
-    Use Case:
-        Analyze how well you retain customers over time.
-        Month 0 = signup month (100% retention)
-        Month 1 = 1 month later
-        Month 6 = 6 months later
-    """
-    try:
-        response = supabase.table("cohort_retention")\
-            .select("*")\
-            .order("cohort_month", desc=True)\
-            .execute()
-        
-        df = pd.DataFrame(response.data)
-        if not df.empty:
-            df['cohort_month'] = pd.to_datetime(df['cohort_month'])
-            
-            # Filter to most recent cohorts
-            recent_cohorts = df['cohort_month'].unique()[:cohorts]
-            df = df[df['cohort_month'].isin(recent_cohorts)]
-            df = df.sort_values(['cohort_month', 'month_number'])
-        return df
-        
-    except Exception as e:
-        st.error(f"❌ Error fetching cohort data: {str(e)}")
-        return pd.DataFrame()
-
-
-def get_current_metrics(supabase: Client) -> Dict:
-    """
-    Calculate current month's key performance indicators.
-    
-    Args:
-        supabase (Client): Supabase client instance
-        
-    Returns:
-        dict: Dictionary containing:
-            - mrr: Current MRR (float)
-            - mrr_growth: MRR growth vs previous month (%)
-            - customers: Current customer count (int)
-            - customer_growth: Customer growth vs previous month (%)
-            - churn_rate: Current month churn rate (%)
-            - new_customers: New customers this month (int)
-            
-    Example:
-        >>> metrics = get_current_metrics(supabase)
-        >>> print(f"MRR: ${metrics['mrr']:,.0f} ({metrics['mrr_growth']:+.1f}%)")
-    """
-    try:
-        # Get latest 2 months for comparison
-        response = supabase.table("monthly_revenue")\
-            .select("*")\
-            .order("month", desc=True)\
-            .limit(2)\
-            .execute()
-        
         data = response.data
-        if len(data) < 1:
+        if not data:
             return {}
-        
-        current = data[0]
-        previous = data[1] if len(data) > 1 else current
-        
-        # Calculate growth rates
-        mrr_growth = (
-            ((current['mrr'] - previous['mrr']) / previous['mrr'] * 100)
-            if previous['mrr'] > 0 else 0
-        )
-        
-        customer_growth = (
-            ((current['customer_count'] - previous['customer_count']) 
-             / previous['customer_count'] * 100)
-            if previous['customer_count'] > 0 else 0
-        )
-        
-        churn_rate = (
-            (current['churn_count'] / current['customer_count'] * 100)
-            if current['customer_count'] > 0 else 0
-        )
-        
+
+        df = pd.DataFrame(data)
+        total = len(df)
+        normal = len(df[df['status'] == '정상'])
+        fault = len(df[df['status'] == '장애'])
+        maintenance = len(df[df['status'] == '점검'])
+
         return {
-            'mrr': current['mrr'],
-            'mrr_growth': round(mrr_growth, 1),
-            'customers': current['customer_count'],
-            'customer_growth': round(customer_growth, 1),
-            'churn_rate': round(churn_rate, 1),
-            'new_customers': current['new_customers']
+            'total': total,
+            'normal': normal,
+            'fault': fault,
+            'maintenance': maintenance,
+            'idc_count': len(df[df['location'] == 'IDC']),
+            'hq_count': len(df[df['location'] == 'HQ']),
+            'prd_count': len(df[df['env'] == 'PRD']),
+            'stg_count': len(df[df['env'] == 'STG']),
+            'dev_count': len(df[df['env'] == 'DEV']),
         }
-        
+
     except Exception as e:
-        st.error(f"❌ Error fetching current metrics: {str(e)}")
+        st.error(f"Error fetching server stats: {str(e)}")
         return {}
 
 
-# Optional: Custom query builder for advanced use cases
-def execute_custom_query(supabase: Client, table: str, filters: Dict = None) -> pd.DataFrame:
-    """
-    Execute a custom query with filters.
-    
-    Args:
-        supabase (Client): Supabase client instance
-        table (str): Table name to query
-        filters (dict): Optional filters to apply
-        
-    Returns:
-        pd.DataFrame: Query results
-        
-    Example:
-        >>> filters = {'plan_tier': 'enterprise'}
-        >>> df = execute_custom_query(supabase, 'revenue_by_plan', filters)
-        
-    Note:
-        This is a template for adding custom queries.
-        Expand as needed for your specific use cases.
-    """
+def add_server(supabase: Client, server_data: Dict) -> bool:
     try:
-        query = supabase.table(table).select("*")
-        
-        if filters:
-            for key, value in filters.items():
-                query = query.eq(key, value)
-        
-        response = query.execute()
-        return pd.DataFrame(response.data)
-        
+        supabase.table("server_inventory").insert(server_data).execute()
+        return True
     except Exception as e:
-        st.error(f"❌ Custom query failed: {str(e)}")
-        return pd.DataFrame()
+        st.error(f"Error adding server: {str(e)}")
+        return False
+
+
+def update_server(supabase: Client, server_id: str, server_data: Dict) -> bool:
+    try:
+        supabase.table("server_inventory")\
+            .update(server_data)\
+            .eq("id", server_id)\
+            .execute()
+        return True
+    except Exception as e:
+        st.error(f"Error updating server: {str(e)}")
+        return False
+
+
+def delete_server(supabase: Client, server_id: str) -> bool:
+    try:
+        supabase.table("server_inventory")\
+            .delete()\
+            .eq("id", server_id)\
+            .execute()
+        return True
+    except Exception as e:
+        st.error(f"Error deleting server: {str(e)}")
+        return False

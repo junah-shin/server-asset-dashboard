@@ -1,423 +1,116 @@
-# 📊 SaaS Dashboard Template
+# Server Asset Management Dashboard
 
-> **Production-ready Streamlit template for SaaS metrics visualization**
+Streamlit + Supabase 기반 서버 자산 관리 대시보드.
 
-A beautiful, fully-functional SaaS analytics dashboard that you can have running in under 10 minutes. Perfect for indie hackers, startup founders, and SaaS businesses who need professional metrics tracking without the complexity.
+## Features
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Python](https://img.shields.io/badge/python-3.11+-blue)
-
----
-
-## ✨ Features
-
-### 🔐 **Complete Authentication**
-- Supabase email/password authentication
-- Secure session management
-- User registration with email verification
-- Password reset functionality (optional)
-
-### 📈 **SaaS Metrics Tracking**
-- **MRR (Monthly Recurring Revenue)** with growth trends
-- **Customer Count** with growth rates
-- **Churn Rate** analysis and visualization
-- **Plan Tier Breakdown** (Starter/Pro/Enterprise)
-- **Cohort Retention** heatmaps
-- **New Customer** acquisition tracking
-
-### 🤖 **AI-Powered Insights**
-- Executive summary generation via Claude API
-- Natural language metric queries
-- Trend analysis and recommendations
-- "Ask your dashboard" functionality
-
-### 🎨 **Professional UI/UX**
-- Beautiful dark theme
-- Responsive design (works on mobile)
-- Interactive Plotly charts
-- Custom CSS styling
-- Clean, modern interface
-
-### 🛠️ **Developer-Friendly**
-- Well-documented code
-- Modular architecture
-- Easy customization
-- Production-ready structure
-- Demo data generator included
+- 전체 서버 수 KPI (정상/장애/점검)
+- 설치위치(IDC/HQ)별 서버 분포 차트
+- 운영등급(PRD/STG/DEV) 분포 차트
+- 운영상태별 서버 분포 차트
+- 서버 인벤토리 테이블 (필터링 지원)
+- 서버 등록 기능
+- Supabase Auth 기반 로그인/회원가입
 
 ---
 
-## 🚀 Quick Start (10 Minutes)
+## 1. Supabase 설정
 
-### Prerequisites
+### 1-1. 프로젝트 생성
+1. [https://supabase.com](https://supabase.com) 접속 후 로그인
+2. "New Project" 클릭
+3. 프로젝트 이름/비밀번호 설정 후 생성
 
-- Python 3.11 or higher
-- A [Supabase](https://supabase.com) account (free tier works!)
-- An [Anthropic API key](https://console.anthropic.com/) (for AI features)
+### 1-2. 테이블 생성
+1. Supabase Dashboard -> **SQL Editor** 이동
+2. `schema.sql` 파일 내용 전체 복사 & 붙여넣기
+3. **Run** 클릭
+4. `server_inventory` 테이블 + 샘플 데이터 20건이 생성됨
 
-### Step 1: Clone & Install
+### 1-3. API 키 확인
+1. Supabase Dashboard -> **Settings** -> **API**
+2. `Project URL`과 `anon public` key 복사
+
+---
+
+## 2. 로컬 실행
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/saas-dashboard-template.git
-cd saas-dashboard-template
-
-# Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
+# 의존성 설치
 pip install -r requirements.txt
-```
 
-### Step 2: Set Up Supabase
-
-1. Go to [supabase.com](https://supabase.com) and create a new project
-2. Wait for the project to finish setting up (2-3 minutes)
-3. Go to **SQL Editor** in your Supabase dashboard
-4. Copy the contents of `schema.sql` and paste it into the editor
-5. Click **Run** to create all tables
-
-### Step 3: Get Your Credentials
-
-**Supabase:**
-1. In your Supabase project, go to **Settings → API**
-2. Copy your **Project URL**
-3. Copy your **anon/public key**
-
-**Anthropic:**
-1. Go to [console.anthropic.com](https://console.anthropic.com/)
-2. Sign up or log in
-3. Navigate to **API Keys**
-4. Create a new API key
-
-### Step 4: Configure Environment
-
-```bash
-# Copy the example environment file
+# 환경변수 설정
 cp .env.example .env
+# .env 파일에 Supabase URL과 Key 입력
 
-# Edit .env with your favorite editor
-nano .env  # or vim, code, etc.
-```
-
-Add your credentials:
-```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your_anon_key_here
-ANTHROPIC_API_KEY=sk-ant-api03-...
-```
-
-### Step 5: Seed Sample Data
-
-```bash
-# Generate 12 months of realistic sample data
-python seed_data.py
-```
-
-You should see:
-```
-🌱 Starting database seeding...
-✅ Connected to Supabase
-📊 Generating sample data...
-✨ Database seeded successfully!
-```
-
-### Step 6: Launch Dashboard
-
-```bash
+# 실행
 streamlit run app.py
 ```
 
-Visit `http://localhost:8501` in your browser. **You're live!** 🎉
-
-### Step 7: Create Your First User
-
-1. Click the **"Sign Up"** tab
-2. Enter your email and password (minimum 6 characters)
-3. Check your email for the verification link
-4. Click the verification link
-5. Return to the dashboard and log in
+브라우저에서 `http://localhost:8501` 접속.
 
 ---
 
-## 📖 Usage Guide
+## 3. Streamlit Cloud 배포
 
-### Dashboard Navigation
+### 3-1. GitHub 연동
+1. 이 프로젝트를 본인 GitHub 리포지토리에 push
+2. `.env` 파일은 push하지 않음 (`.gitignore`에 포함)
 
-The dashboard has four main sections:
+### 3-2. Streamlit Cloud 배포
+1. [https://share.streamlit.io](https://share.streamlit.io) 접속 후 GitHub 로그인
+2. "New app" 클릭
+3. 리포지토리, 브랜치, `app.py` 선택
+4. **Advanced settings** -> Secrets에 아래 내용 입력:
 
-#### 1. **Overview**
-- High-level KPIs at a glance
-- MRR and customer growth charts
-- Quick performance summary
-
-#### 2. **Revenue Analytics**
-- Detailed MRR trend analysis
-- Revenue breakdown by plan tier
-- Plan distribution table
-
-#### 3. **Customer Insights**
-- Customer growth visualization
-- Churn rate analysis
-- Cohort retention heatmap
-
-#### 4. **AI Insights**
-- Executive summary generation
-- Natural language queries
-- Ask questions like:
-  - "What's driving my revenue growth?"
-  - "Should I be worried about churn?"
-  - "Which plan tier is most profitable?"
-
----
-
-## 🗂️ Project Structure
-
-```
-saas-dashboard-template/
-├── app.py                     # Main Streamlit application
-├── requirements.txt           # Python dependencies
-├── .env.example              # Environment variables template
-├── .gitignore                # Git ignore rules
-├── schema.sql                # Database schema (run in Supabase)
-├── seed_data.py              # Sample data generator
-├── README.md                 # This file
-├── CUSTOMIZATION.md          # Customization guide
-├── LICENSE                   # MIT License
-│
-├── utils/                    # Utility modules
-│   ├── __init__.py
-│   ├── auth.py              # Authentication logic
-│   ├── database.py          # Database queries
-│   ├── charts.py            # Plotly chart generation
-│   └── ai_insights.py       # Claude AI integration
-│
-├── assets/                   # Static assets
-│   └── style.css            # Custom CSS theme
-│
-└── docs/                     # Additional documentation
-    └── DEPLOYMENT.md        # Deployment guide (optional)
+```toml
+SUPABASE_URL = "https://your-project.supabase.co"
+SUPABASE_KEY = "your-anon-key-here"
 ```
 
----
+5. "Deploy" 클릭
+6. 배포 완료 후 `https://your-app.streamlit.app` 으로 접속 가능
 
-## 🎨 Customization
+### 3-3. Secrets 적용 (Streamlit Cloud)
+Streamlit Cloud에서는 `.env` 대신 Secrets를 사용합니다.
+`utils/auth.py`에서 `os.getenv()`가 Streamlit Cloud의 Secrets도 자동으로 읽습니다 (`python-dotenv`와 호환).
 
-### Change Brand Colors
-
-Edit `assets/style.css`:
-
-```css
-/* Primary color (green) */
-#00C853 → #YOUR_COLOR
-
-/* Accent colors */
-#2196F3 → #YOUR_BLUE
-#FF9800 → #YOUR_ORANGE
-```
-
-### Modify Plan Tiers
-
-Edit `seed_data.py`:
-
+만약 Secrets가 인식되지 않으면 `utils/auth.py`의 `get_supabase_client()`에서:
 ```python
-PLAN_PRICES = {
-    'basic': 19,      # Change names and prices
-    'premium': 79,
-    'ultimate': 199
-}
+url = os.getenv("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
+key = os.getenv("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY")
 ```
-
-Update database queries in `utils/database.py` to match.
-
-### Add New Metrics
-
-1. Update database schema in `schema.sql`
-2. Add queries in `utils/database.py`
-3. Create chart functions in `utils/charts.py`
-4. Add new page in `app.py`
-
-See `CUSTOMIZATION.md` for detailed instructions.
+로 변경하면 됩니다.
 
 ---
 
-## 🚢 Deployment
+## 4. 데이터 구조
 
-### Streamlit Cloud (Recommended)
-
-1. Push your code to GitHub
-2. Go to [share.streamlit.io](https://share.streamlit.io)
-3. Connect your repository
-4. Add secrets in the app settings:
-   ```
-   SUPABASE_URL = "your_url"
-   SUPABASE_KEY = "your_key"
-   ANTHROPIC_API_KEY = "your_key"
-   ```
-5. Deploy!
-
-### Other Platforms
-
-- **Heroku**: Use the included `Procfile`
-- **DigitalOcean**: Deploy as a web service
-- **AWS/GCP**: Run on EC2/Compute Engine
-- **Docker**: Containerize with provided `Dockerfile`
+| Column   | Type         | Constraint                |
+|----------|--------------|---------------------------|
+| location | VARCHAR(10)  | 'IDC' or 'HQ'            |
+| env      | VARCHAR(10)  | 'PRD', 'STG', or 'DEV'   |
+| hostname | VARCHAR(255) | NOT NULL                  |
+| ip       | VARCHAR(45)  | NOT NULL                  |
+| owner    | VARCHAR(100) | NOT NULL                  |
+| status   | VARCHAR(10)  | '정상', '장애', or '점검' |
 
 ---
 
-## 🔒 Security Best Practices
+## Project Structure
 
-### Essential Security Steps
-
-1. **Never commit `.env` file** - Already in `.gitignore`
-2. **Enable Row Level Security (RLS)** in Supabase for multi-tenancy
-3. **Rotate API keys** if accidentally exposed
-4. **Use environment variables** for all secrets
-5. **Enable email verification** in Supabase settings
-
-### Production Checklist
-
-- [ ] Set up SSL/HTTPS
-- [ ] Enable Supabase RLS policies
-- [ ] Use strong password requirements
-- [ ] Implement rate limiting
-- [ ] Set up monitoring and logging
-- [ ] Configure backup strategy
-- [ ] Review Supabase auth settings
-
----
-
-## 📊 Metrics Tracked
-
-| Metric | Description | Calculation |
-|--------|-------------|-------------|
-| **MRR** | Monthly Recurring Revenue | Sum of all active subscriptions |
-| **Customer Count** | Total active customers | Count of non-churned users |
-| **Churn Rate** | % of customers lost | (Churned / Total) × 100 |
-| **Cohort Retention** | % retained by signup month | (Active / Initial) × 100 per cohort |
-| **Plan Breakdown** | Revenue by tier | Sum per plan (Starter/Pro/Enterprise) |
-| **New Customers** | Monthly acquisitions | Count of new signups |
-
----
-
-## 💰 Cost Breakdown
-
-### Free Tier Usage
-
-- **Supabase**: 500MB database, 2GB transfer/month (Free forever)
-- **Streamlit Cloud**: 1 private app (Free)
-- **Anthropic Claude**: $5 free credits (then pay-as-you-go)
-
-### Typical Monthly Costs (after free tier)
-
-- **Supabase**: $0-25 (upgrade if you exceed 500MB)
-- **Claude API**: $1-5 (for AI insights, very affordable)
-- **Hosting**: $0 (Streamlit Cloud free tier)
-
-**Total**: $1-30/month depending on usage
-
-Compare to alternatives:
-- ChartMogul: $100/month
-- Baremetrics: $108/month
-- ProfitWell: $0 (but limited features)
-
----
-
-## 🛠️ Tech Stack
-
-| Technology | Purpose | Version |
-|------------|---------|---------|
-| **Streamlit** | Web framework | 1.31+ |
-| **Supabase** | Database & Auth | PostgreSQL |
-| **Anthropic Claude** | AI insights | API v1 |
-| **Plotly** | Interactive charts | 5.18+ |
-| **Pandas** | Data processing | 2.1+ |
-| **Python** | Backend | 3.11+ |
-
----
-
-## 🆘 Troubleshooting
-
-### "No data available"
-→ Run `python seed_data.py` to generate sample data
-
-### "Supabase credentials not found"
-→ Check that `.env` file exists and has valid `SUPABASE_URL` and `SUPABASE_KEY`
-
-### "Login failed"
-→ Check your email for the verification link from Supabase
-
-### Charts not displaying
-→ Ensure data exists in database and tables were created via `schema.sql`
-
-### AI insights not working
-→ Verify `ANTHROPIC_API_KEY` is set in `.env` and has credits
-
-### Import errors
-→ Activate virtual environment and run `pip install -r requirements.txt`
-
----
-
-## 📚 Additional Resources
-
-- [Streamlit Documentation](https://docs.streamlit.io)
-- [Supabase Documentation](https://supabase.com/docs)
-- [Anthropic Claude API Docs](https://docs.anthropic.com)
-- [Plotly Python Documentation](https://plotly.com/python/)
-
----
-
-## 🤝 Contributing
-
-This is a template product, but if you have suggestions:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
----
-
-## 📄 License
-
-MIT License - See `LICENSE` file for details.
-
-You have full rights to:
-- ✅ Use commercially
-- ✅ Modify and customize
-- ✅ Distribute
-- ✅ Private use
-
-No attribution required (but appreciated!)
-
----
-
-## 🙏 Support
-
-**Questions? Issues?**
-
-- 📧 Email: support@yourcompany.com
-- 💬 GitHub Issues: [Create an issue](https://github.com/yourusername/saas-dashboard-template/issues)
-- 📖 Documentation: See `CUSTOMIZATION.md` for advanced topics
-
----
-
-## 🌟 What's Next?
-
-Once you're comfortable with the template:
-
-1. **Connect real data** - Replace sample data with your actual SaaS metrics
-2. **Add more metrics** - LTV, CAC, runway, burn rate
-3. **Customize styling** - Match your brand colors
-4. **Deploy to production** - Use Streamlit Cloud or your preferred platform
-5. **Add features** - Email reports, Slack notifications, exports
-
----
-
-**Built for indie makers and startup founders who need beautiful analytics without the complexity.**
-
-Got questions? Want to share your customization? Open an issue or PR!
-
-⭐ If this saved you time, consider starring the repo!
+```
+server-asset-dashboard/
+├── app.py                 # Main Streamlit app
+├── schema.sql             # Supabase table schema + sample data
+├── requirements.txt       # Python dependencies
+├── .env.example           # Environment variable template
+├── .streamlit/
+│   └── config.toml        # Streamlit theme config
+├── assets/
+│   └── style.css          # Custom dark theme CSS
+└── utils/
+    ├── auth.py            # Supabase authentication
+    ├── database.py        # Server inventory queries
+    └── charts.py          # Plotly chart generators
+```

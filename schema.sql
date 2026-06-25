@@ -1,96 +1,40 @@
 -- ============================================================================
--- SaaS Dashboard Database Schema
+-- Server Asset Management Dashboard - Database Schema
 -- ============================================================================
--- 
+--
 -- Instructions:
 -- 1. Go to your Supabase project dashboard
 -- 2. Navigate to SQL Editor
 -- 3. Copy and paste this entire file
--- 4. Click "Run" to create all tables
---
--- Tables Created:
--- - customers: User accounts and subscription info
--- - monthly_revenue: Aggregated monthly metrics
--- - revenue_by_plan: Revenue breakdown by tier
--- - cohort_retention: Customer retention analysis
+-- 4. Click "Run" to create the table and insert sample data
 --
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- CUSTOMERS TABLE
--- Stores individual customer records
+-- SERVER INVENTORY TABLE
 -- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS customers (
+CREATE TABLE IF NOT EXISTS server_inventory (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    signup_date DATE NOT NULL,
-    plan_tier VARCHAR(50) NOT NULL, -- 'starter', 'pro', 'enterprise'
-    status VARCHAR(50) NOT NULL DEFAULT 'active', -- 'active', 'churned', 'paused'
-    churn_date DATE,
+    location VARCHAR(10) NOT NULL CHECK (location IN ('IDC', 'HQ')),
+    env VARCHAR(10) NOT NULL CHECK (env IN ('PRD', 'STG', 'DEV')),
+    hostname VARCHAR(255) NOT NULL,
+    ip VARCHAR(45) NOT NULL,
+    owner VARCHAR(100) NOT NULL,
+    status VARCHAR(10) NOT NULL CHECK (status IN ('정상', '장애', '점검')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW())
 );
 
 -- ----------------------------------------------------------------------------
--- MONTHLY REVENUE TABLE
--- Aggregated metrics by month
+-- INDEXES
 -- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS monthly_revenue (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    month DATE NOT NULL,
-    mrr DECIMAL(10, 2) NOT NULL, -- Monthly Recurring Revenue
-    customer_count INTEGER NOT NULL, -- Total active customers
-    churn_count INTEGER DEFAULT 0, -- Customers lost this month
-    new_customers INTEGER DEFAULT 0, -- New signups this month
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
-    UNIQUE(month)
-);
+CREATE INDEX IF NOT EXISTS idx_server_inventory_location ON server_inventory(location);
+CREATE INDEX IF NOT EXISTS idx_server_inventory_env ON server_inventory(env);
+CREATE INDEX IF NOT EXISTS idx_server_inventory_status ON server_inventory(status);
+CREATE INDEX IF NOT EXISTS idx_server_inventory_hostname ON server_inventory(hostname);
 
 -- ----------------------------------------------------------------------------
--- REVENUE BY PLAN TABLE
--- Monthly revenue breakdown by plan tier
--- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS revenue_by_plan (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    month DATE NOT NULL,
-    plan_tier VARCHAR(50) NOT NULL, -- 'starter', 'pro', 'enterprise'
-    revenue DECIMAL(10, 2) NOT NULL, -- Revenue from this plan tier
-    customer_count INTEGER NOT NULL, -- Customers on this plan
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
-    UNIQUE(month, plan_tier)
-);
-
--- ----------------------------------------------------------------------------
--- COHORT RETENTION TABLE
--- Track how well cohorts retain over time
--- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS cohort_retention (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    cohort_month DATE NOT NULL, -- Month when cohort signed up
-    month_number INTEGER NOT NULL, -- 0 = signup month, 1 = 1 month later, etc.
-    customers_remaining INTEGER NOT NULL, -- Active customers from this cohort
-    retention_rate DECIMAL(5, 2) NOT NULL, -- Percentage still active (0-100)
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
-    UNIQUE(cohort_month, month_number)
-);
-
--- ----------------------------------------------------------------------------
--- INDEXES FOR PERFORMANCE
--- These speed up common queries
--- ----------------------------------------------------------------------------
-CREATE INDEX IF NOT EXISTS idx_customers_signup_date ON customers(signup_date);
-CREATE INDEX IF NOT EXISTS idx_customers_status ON customers(status);
-CREATE INDEX IF NOT EXISTS idx_customers_plan_tier ON customers(plan_tier);
-CREATE INDEX IF NOT EXISTS idx_monthly_revenue_month ON monthly_revenue(month);
-CREATE INDEX IF NOT EXISTS idx_revenue_by_plan_month ON revenue_by_plan(month);
-CREATE INDEX IF NOT EXISTS idx_cohort_retention_cohort ON cohort_retention(cohort_month);
-
--- ----------------------------------------------------------------------------
--- TRIGGERS FOR UPDATED_AT TIMESTAMPS
--- Automatically update 'updated_at' when rows change
+-- TRIGGER: AUTO-UPDATE updated_at
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -100,28 +44,64 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Apply to all tables
-CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON customers
+CREATE TRIGGER update_server_inventory_updated_at
+    BEFORE UPDATE ON server_inventory
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_monthly_revenue_updated_at BEFORE UPDATE ON monthly_revenue
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- ----------------------------------------------------------------------------
+-- ROW LEVEL SECURITY (Optional)
+-- ----------------------------------------------------------------------------
+ALTER TABLE server_inventory ENABLE ROW LEVEL SECURITY;
 
-CREATE TRIGGER update_revenue_by_plan_updated_at BEFORE UPDATE ON revenue_by_plan
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE POLICY "Allow authenticated read" ON server_inventory
+    FOR SELECT TO authenticated USING (true);
 
-CREATE TRIGGER update_cohort_retention_updated_at BEFORE UPDATE ON cohort_retention
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE POLICY "Allow authenticated insert" ON server_inventory
+    FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY "Allow authenticated update" ON server_inventory
+    FOR UPDATE TO authenticated USING (true);
+
+CREATE POLICY "Allow authenticated delete" ON server_inventory
+    FOR DELETE TO authenticated USING (true);
+
+-- ----------------------------------------------------------------------------
+-- SAMPLE DATA
+-- ----------------------------------------------------------------------------
+INSERT INTO server_inventory (location, env, hostname, ip, owner, status) VALUES
+    -- IDC PRD
+    ('IDC', 'PRD', 'web-prd-01', '10.10.1.11', '김민수', '정상'),
+    ('IDC', 'PRD', 'web-prd-02', '10.10.1.12', '김민수', '정상'),
+    ('IDC', 'PRD', 'api-prd-01', '10.10.1.21', '이영희', '정상'),
+    ('IDC', 'PRD', 'api-prd-02', '10.10.1.22', '이영희', '장애'),
+    ('IDC', 'PRD', 'db-prd-01', '10.10.1.31', '박정호', '정상'),
+    ('IDC', 'PRD', 'db-prd-02', '10.10.1.32', '박정호', '정상'),
+    ('IDC', 'PRD', 'cache-prd-01', '10.10.1.41', '최서연', '점검'),
+    -- IDC STG
+    ('IDC', 'STG', 'web-stg-01', '10.10.2.11', '김민수', '정상'),
+    ('IDC', 'STG', 'api-stg-01', '10.10.2.21', '이영희', '정상'),
+    ('IDC', 'STG', 'db-stg-01', '10.10.2.31', '박정호', '정상'),
+    -- IDC DEV
+    ('IDC', 'DEV', 'web-dev-01', '10.10.3.11', '한지우', '정상'),
+    ('IDC', 'DEV', 'api-dev-01', '10.10.3.21', '한지우', '정상'),
+    ('IDC', 'DEV', 'db-dev-01', '10.10.3.31', '정다은', '점검'),
+    -- HQ PRD
+    ('HQ', 'PRD', 'erp-prd-01', '192.168.1.11', '오승훈', '정상'),
+    ('HQ', 'PRD', 'mail-prd-01', '192.168.1.21', '오승훈', '정상'),
+    ('HQ', 'PRD', 'file-prd-01', '192.168.1.31', '윤하늘', '장애'),
+    -- HQ STG
+    ('HQ', 'STG', 'erp-stg-01', '192.168.2.11', '오승훈', '정상'),
+    ('HQ', 'STG', 'mail-stg-01', '192.168.2.21', '윤하늘', '정상'),
+    -- HQ DEV
+    ('HQ', 'DEV', 'erp-dev-01', '192.168.3.11', '정다은', '정상'),
+    ('HQ', 'DEV', 'test-dev-01', '192.168.3.21', '한지우', '정상');
 
 -- ============================================================================
 -- DONE!
 -- ============================================================================
--- 
--- Next Steps:
--- 1. Run the seed_data.py script to populate sample data
--- 2. Launch your dashboard with: streamlit run app.py
 --
--- Optional: Add Row Level Security (RLS) for multi-tenancy
--- See Supabase docs: https://supabase.com/docs/guides/auth/row-level-security
+-- Next Steps:
+-- 1. Set up .env with your Supabase credentials
+-- 2. Launch dashboard: streamlit run app.py
 --
 -- ============================================================================

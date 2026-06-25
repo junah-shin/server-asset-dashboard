@@ -31,7 +31,7 @@
 /* Hide default Streamlit branding */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
-header {visibility: hidden;}
+header {visibility: visible !important; background: transparent !important;}
 
 
 /* ============================================================================
