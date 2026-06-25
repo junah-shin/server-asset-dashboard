@@ -42,7 +42,7 @@ def show_dashboard():
 
         page = st.radio(
             "Navigation",
-            ["Overview", "Server List", "Add Server"],
+            ["Overview", "Server List"],
             label_visibility="collapsed"
         )
 
@@ -52,8 +52,6 @@ def show_dashboard():
         show_overview_page(supabase)
     elif page == "Server List":
         show_server_list_page(supabase)
-    elif page == "Add Server":
-        show_add_server_page(supabase)
 
 # ============================================================================
 # OVERVIEW PAGE
