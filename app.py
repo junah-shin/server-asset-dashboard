@@ -42,7 +42,7 @@ def show_dashboard():
 
         page = st.radio(
             "Navigation",
-            ["Overview", "Server List"],
+            ["Overview", "Server List", "Add Server"],
             label_visibility="collapsed"
         )
 
@@ -52,6 +52,8 @@ def show_dashboard():
         show_overview_page(supabase)
     elif page == "Server List":
         show_server_list_page(supabase)
+    elif page == "Add Server":
+        show_add_server_page(supabase)
 
 # ============================================================================
 # OVERVIEW PAGE
@@ -173,20 +175,7 @@ def show_add_server_page(supabase):
         submit = st.form_submit_button("Add Server", use_container_width=True, type="primary")
 
         if submit:
-            if hostname and ip and owner:
-                server_data = {
-                    'location': location,
-                    'env': env,
-                    'hostname': hostname,
-                    'ip': ip,
-                    'owner': owner,
-                    'status': status,
-                }
-                if add_server(supabase, server_data):
-                    st.success(f"Server '{hostname}' added successfully!")
-                    st.rerun()
-            else:
-                st.warning("Please fill in all required fields (Hostname, IP, Owner)")
+            st.warning("관리자 승인이 필요합니다.")
 
 # ============================================================================
 # MAIN
